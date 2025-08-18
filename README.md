@@ -12,10 +12,15 @@
 
 이 시스템은 세 개의 독립적인 파이썬 스크립트로 구성되어 있습니다.
 V2X/
+
 ├── v2x_preprocessing.py # 데이터 전처리, 피처 추출, 시퀀스 생성
+
 ├── v2x_training.py      # AutoEncoder 모델 학습 및 임계값 설정
+
 ├── v2x_testing.py       # 학습된 모델을 이용한 이상 탐지 성능 평가
+
 └── README.md            # 이 파일
+
 
 
 ## 주요 기능
