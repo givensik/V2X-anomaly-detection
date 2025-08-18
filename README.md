@@ -1,4 +1,3 @@
-네, 알겠습니다. 방금 작성해 드린 README.md의 내용을 Markdown 형식이 아닌, 텍스트 그대로 보여 드리겠습니다. 이 내용을 복사해서 README.md 파일에 붙여넣기 하시면 됩니다.
 
 V2X Anomaly Detection System
 이 프로젝트는 V2AIX와 VeReMi 데이터셋을 이용하여 AutoEncoder 기반의 5G/6G V2X(차량-사물 통신) 이상 탐지 시스템을 개발합니다.
