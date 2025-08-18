@@ -1,0 +1,12 @@
+/VeReMi_Data/all
+/VeReMi_Data/results
+/V2AIX_Data/json
+/V2AIX_Data/results
+/processed_backup/
+/veremi_all/
+/preprocess/out
+/out/
+*.csv
+*.json
+*.pth
+/artifacts
