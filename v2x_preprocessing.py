@@ -215,26 +215,69 @@ def iter_veremi_pairs(roots):
 if __name__ == "__main__":
     preprocessor = V2XDataPreprocessor()
     
-    # V2AIX 데이터
-    v2aix_path = "V2AIX_Data/json/Mobile/V2X-only"
-    v2aix_df = preprocessor.load_v2aix_data(v2aix_path, max_files=10000)
+    # # V2AIX 데이터
+    # v2aix_path = "V2AIX_Data/json/Mobile/V2X-only"
+    # print(f"Loading V2AIX data from {v2aix_path}...")
+    # v2aix_df = preprocessor.load_v2aix_data(v2aix_path, max_files=10000)
 
     # VeReMi 데이터: all/ 하위 모든 results 폴더에서 로그/GT 페어 탐색
     veremi_root = "VeReMi_Data/all"
     veremi_dfs = []
-    for log_path, gt_path in iter_veremi_pairs(veremi_root):
-        print(f"Loading VeReMi log: {log_path}")
-        df = preprocessor.load_veremi_data(log_path, gt_path)
-        if not df.empty:
-            veremi_dfs.append(df)
-    veremi_df = pd.concat(veremi_dfs, ignore_index=True) if veremi_dfs else pd.DataFrame()
+    save_interval = 100
+    save_path = "out/veremi_temp.csv"
+    processed_count = 0
+    # 임시 파일에서 데이터 로드 (중단된 경우 재시작)
+    if os.path.exists(save_path):
+        try:
+            temp_df = pd.read_csv(save_path)
+            veremi_dfs.append(temp_df)
+            processed_count = len(temp_df)
+            print(f"Resuming VeReMi from {len(temp_df)} previously processed records.")
+        except Exception as e:
+            print(f"Error loading temp file, starting fresh: {e}")
 
+    
+    print(f"Loading all VeReMi logs and ground truths from {veremi_root}...")
+
+    # iter_veremi_pairs 함수를 통해 모든 로그/GT 쌍을 자동으로 찾습니다.
+    # 이미 처리된 파일은 건너뛰고 이어서 진행합니다.
+    for log_path, gt_path in iter_veremi_pairs(veremi_root):
+        if log_path in [df['_src'].iloc[0] for df in veremi_dfs if '_src' in df.columns]:
+            continue
+
+        print(f"Processing VeReMi log: {log_path}")
+        df = preprocessor.load_veremi_data(log_path, gt_path)
+        
+        if not df.empty:
+            df['_src'] = log_path
+            veremi_dfs.append(df)
+            processed_count += 1
+            
+            # 일정 간격마다 중간 저장
+            if processed_count % save_interval == 0:
+                current_df = pd.concat(veremi_dfs, ignore_index=True)
+                current_df.to_csv(save_path, index=False)
+                print(f"[{processed_count} pairs] Intermediate save to {save_path}")
+
+
+    # # VeReMi 데이터셋의 로그와 Ground Truth 파일을 페어로 로드
+    # for log_path, gt_path in iter_veremi_pairs(veremi_root):
+    #     print(f"Loading VeReMi log: {log_path}")
+    #     df = preprocessor.load_veremi_data(log_path, gt_path)
+
+    #     if not df.empty:
+    #         veremi_dfs.append(df)
+
+    veremi_df = pd.concat(veremi_dfs, ignore_index=True) if veremi_dfs else pd.DataFrame()
+    print(f"Total VeReMi records loaded: {len(veremi_df)}")
+    
     # 각각 CSV로 저장
-    v2aix_df.to_csv("out/v2aix_preprocessed.csv", index=False)
+    print("Saving VeReMi preprocessed data...")
+    # v2aix_df.to_csv("out/v2aix_preprocessed.csv", index=False)
     veremi_df.to_csv("out/veremi_preprocessed.csv", index=False)
     
     # (아래는 참고용: 전체 합쳐서 전처리/시퀀스 생성)
-    combined_df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
-    processed_df = preprocessor.preprocess_features(combined_df)
-    sequences, labels = preprocessor.create_sequences(processed_df)
-    print(f"Sequences shape: {sequences.shape}, Labels shape: {labels.shape}")
+    # combined_df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
+    # processed_df = preprocessor.preprocess_features(combined_df)
+    # sequences, labels = preprocessor.create_sequences(processed_df)
+    # print(f"Sequences shape: {sequences.shape}, Labels shape: {labels.shape}")

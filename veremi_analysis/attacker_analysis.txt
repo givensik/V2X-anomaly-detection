@@ -1,0 +1,14 @@
+VeReMi GroundTruth Analysis Results
+==================================================
+
+Total messages: 959
+Attack messages: 28
+Normal messages: 931
+Attack ratio: 2.92%
+
+Attacker types distribution:
+  Type 1: 28 messages (100.0%)
+
+Unique attackers: 1
+Top attackers by message count:
+  Sender 49: 28 attack messages

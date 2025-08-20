@@ -14,13 +14,17 @@
 
 V2X/
 
+├── out/ # 전처리 데이터 저장
+
+├── artifacts/ # 모델 저장(pki)
+
 ├── v2x_preprocessing.py # 데이터 전처리, 피처 추출, 시퀀스 생성
 
 ├── v2x_training.py      # AutoEncoder 모델 학습 및 임계값 설정
 
 ├── v2x_testing.py       # 학습된 모델을 이용한 이상 탐지 성능 평가
 
-└── README.md            # 이 파일
+└── README.md
 
 
 

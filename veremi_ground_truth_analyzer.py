@@ -73,9 +73,11 @@ class VeReMiGroundTruthAnalyzer:
         """공격자 매핑 딕셔너리 생성"""
         print("\nCreating attacker mapping...")
         
+        self.attacker_info = {} # 매핑 초기화
         for entry in self.ground_truth_data:
             if entry['attackerType'] > 0:  # 공격자
-                key = (entry['time'], entry['sender'], entry['messageID'])
+                # 튜플 키를 문자열 키로 변경
+                key = f"{entry['time']}_{entry['sender']}_{entry['messageID']}"
                 self.attacker_info[key] = {
                     'attackerType': entry['attackerType'],
                     'time': entry['time'],
