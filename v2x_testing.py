@@ -46,14 +46,43 @@ def run_testing(
     thr = float(meta["threshold"])
     input_dim = int(meta["input_dim"])
     seq_len = int(sequence_length or meta["sequence_length"])
+    
+    feature_columns = [
+        'pos_x', 'pos_y', 'pos_z',
+        'spd_x', 'spd_y',
+        'heading', 'speed'
+    ]
+    print(f"Using {len(feature_columns)} selected features for testing.")
 
     pre = load_preprocessor(os.path.join(artifacts_dir, "preprocessor.pkl"))
+    pre.feature_columns = feature_columns
     # CSV 데이터 불러오기
-    v2aix_df = pd.read_csv(v2aix_csv_path)
-    veremi_df = pd.read_csv(veremi_csv_path)
+    # 3. CSV 파일을 읽을 때 필요한 컬럼만 선택하여 로드합니다.
+    cols_to_load = feature_columns + ['station_id', 'timestamp', 'is_attacker', 'attacker_type', 'dataset']
+    
+    print("Loading V2AIX (from CSV) with selected columns...")
+    v2aix_df = pd.read_csv(v2aix_csv_path, usecols=lambda c: c in cols_to_load)
+
+    print("Loading VeReMi (from CSV) with selected columns...")
+    veremi_df = pd.read_csv(veremi_csv_path, usecols=lambda c: c in cols_to_load)
+    
+
+    # Preprocess and create sequences
+    print("Preprocessing and creating sequences for each dataset...")
+    v2aix_df_processed = pre.preprocess_features(v2aix_df)
+    X_v2aix, y_v2aix = pre.create_sequences(v2aix_df_processed, sequence_length=seq_len)
+
+    veremi_df_processed = pre.preprocess_features(veremi_df)
+    X_veremi, y_veremi = pre.create_sequences(veremi_df_processed, sequence_length=seq_len)
+
+    print("Combining the generated sequences...")
+    X = np.concatenate([X_v2aix, X_veremi], axis=0)
+    y = np.concatenate([y_v2aix, y_veremi], axis=0)
     df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
-    df = pre.preprocess_features(df)
-    X, y = pre.create_sequences(df, sequence_length=seq_len)
+
+
+    # df = pre.preprocess_features(df)
+    # X, y = pre.create_sequences(df, sequence_length=seq_len)
 
     # Same split strategy
     X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)

@@ -173,11 +173,23 @@ def run_training(
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-    pre = V2XDataPreprocessor()
+    # 'spd_z', 'acceleration', 'curvature'를 제외한 7개 피처
+    feature_columns = [
+        'pos_x', 'pos_y', 'pos_z',
+        'spd_x', 'spd_y',
+        'heading', 'speed'
+    ]
+    print(f"Using {len(feature_columns)} selected features.")
+
+    pre = V2XDataPreprocessor(feature_columns=feature_columns)
+
+    # CSV 데이터 불러오기 columns
+    cols_to_load = feature_columns + ['station_id', 'timestamp', 'is_attacker', 'attacker_type', 'dataset']
 
     # V2AIX 데이터셋 시퀀스 생성 및 라벨링(Version 2)
     print("Loading V2AIX (from CSV) ...")
-    v2aix_df = pd.read_csv(v2aix_csv_path)
+    # v2aix_df = pd.read_csv(v2aix_csv_path)
+    v2aix_df = pd.read_csv(v2aix_csv_path, usecols=lambda c: c in cols_to_load)
     v2aix_df = pre.preprocess_features(v2aix_df)
     X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=sequence_length)
     print(f"V2AIX Sequences: {X_v2aix.shape}, Labels: {y_v2aix.shape}")
@@ -186,7 +198,8 @@ def run_training(
     # VeReMi는 전체 데이터를 사용하므로, 공격 데이터도 포함됨
     # VeReMi 데이터셋 시퀀스 생성 및 라벨링
     print("Loading VeReMi (from CSV) ...")
-    veremi_df = pd.read_csv(veremi_csv_path)
+    # veremi_df = pd.read_csv(veremi_csv_path)
+    veremi_df = pd.read_csv(veremi_csv_path, usecols=lambda c: c in cols_to_load)
     veremi_df = pre.preprocess_features(veremi_df)
     X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=sequence_length)
     print(f"VeReMi Sequences: {X_veremi.shape}, Labels: {y_veremi.shape}")
@@ -285,7 +298,7 @@ def run_training(
     # F-beta score 기반 임계값 탐색
     val_y_tensor = torch.FloatTensor(y_val)
     val_loader_f1 = DataLoader(V2XDataset(X_val, val_y_tensor), batch_size=batch_size, shuffle=False)
-    thr, val_errs = find_optimal_threshold_fbeta(model, val_loader_f1, val_y_tensor, beta=0.3, device=device) # beta=0.5로 설정
+    thr, val_errs = find_optimal_threshold_fbeta(model, val_loader_f1, val_y_tensor, beta=1.5, device=device)
 
     print(f"Optimal Threshold (F1-score): {thr:.6f}") # 출력 메시지는 F-beta로 수정하는 것이 좋습니다.
 
