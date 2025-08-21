@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from v2x_preprocessing import V2XDataPreprocessor, load_preprocessor
 
 class AutoEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_dims=[128,64,32]):
+    def __init__(self, input_dim: int, hidden_dims=[256,128,64]):
         super().__init__()
         enc, prev = [], input_dim
         for h in hidden_dims:
