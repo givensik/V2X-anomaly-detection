@@ -50,7 +50,8 @@ def run_testing(
     feature_columns = [
         'pos_x', 'pos_y', 'pos_z',
         'spd_x', 'spd_y',
-        'heading', 'speed'
+        'heading', 'speed',
+        'acceleration', 'curvature'
     ]
     print(f"Using {len(feature_columns)} selected features for testing.")
 
@@ -78,7 +79,7 @@ def run_testing(
     print("Combining the generated sequences...")
     X = np.concatenate([X_v2aix, X_veremi], axis=0)
     y = np.concatenate([y_v2aix, y_veremi], axis=0)
-    df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
+    # df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
 
 
     # df = pre.preprocess_features(df)

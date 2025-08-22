@@ -138,6 +138,52 @@ class V2XDataPreprocessor:
         if not df.empty:
             df['dataset'] = 'veremi'
         return df
+    # ---------- Dynamic Features ----------
+    def add_dynamic_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        station_id별로 정렬된 데이터프레임에서 동적 피처(가속도, 곡률 등)를 계산합니다.
+        이 함수는 VeReMi 데이터의 누락된 값을 채우고, V2AIX 값도 일관성을 위해 재계산할 수 있습니다.
+        """
+        if df.empty:
+            return df
+
+        df = df.sort_values(['station_id', 'timestamp']).reset_index(drop=True)
+        
+        # station_id별로 계산하기 위해 그룹화
+        # shift()를 사용하여 벡터화된 연산으로 처리 속도 향상
+        prev = df.groupby('station_id').shift(1)
+
+        # Time Delta (시간 변화량) 계산
+        # V2AIX (나노초)와 VeReMi (초)의 timestamp 단위를 구분하여 처리
+        is_nano = df['timestamp'].max() > 1e12 
+        dt = (df['timestamp'] - prev['timestamp']) / 1e9 if is_nano else (df['timestamp'] - prev['timestamp'])
+        
+        # Acceleration (가속도) 계산: 속도 변화량 / 시간 변화량
+        dv = df['speed'] - prev['speed']
+        accel = dv / dt
+
+        # Curvature (곡률) 계산: 방향 변화율(rad/s) / 속도
+        # 방향(heading) 변화량 계산 (-180 ~ 180 범위)
+        dh = df['heading'] - prev['heading']
+        dh_rad = np.radians((dh + 180) % 360 - 180)
+        
+        # 거리 변화량(delta_dist)도 계산해두면 유용합니다.
+        dx = df['pos_x'] - prev['pos_x']
+        dy = df['pos_y'] - prev['pos_y']
+        dd = np.sqrt(dx**2 + dy**2)
+        
+        # 곡률 = 방향변화량(rad) / 이동거리(m)
+        curv = dh_rad / dd
+
+        # 원본 acceleration/curvature가 0이었던 행(주로 VeReMi)에만 계산된 값을 채워넣습니다.
+        df['acceleration'] = np.where(df['acceleration'] == 0, accel, df['acceleration'])
+        df['curvature'] = np.where(df['curvature'] == 0, curv, df['curvature'])
+        
+        # 추가적으로 다른 유용한 동적 피처도 생성할 수 있습니다.
+        # df['delta_time'] = dt
+        # df['delta_dist'] = dd
+
+        return df
 
     def preprocess_features(self, df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
@@ -215,10 +261,13 @@ def iter_veremi_pairs(roots):
 if __name__ == "__main__":
     preprocessor = V2XDataPreprocessor()
     
-    # # V2AIX 데이터
-    # v2aix_path = "V2AIX_Data/json/Mobile/V2X-only"
-    # print(f"Loading V2AIX data from {v2aix_path}...")
-    # v2aix_df = preprocessor.load_v2aix_data(v2aix_path, max_files=10000)
+    # V2AIX 데이터
+    v2aix_path = "V2AIX_Data/json/Mobile/V2X-only"
+    print(f"Loading V2AIX data from {v2aix_path}...")
+    v2aix_df = preprocessor.load_v2aix_data(v2aix_path, max_files=1000000)
+
+    # VeReMi 데이터 
+    max_veremi_files = 100  # <--- 여기에서 처리할 파일 개수를 조절하세요!
 
     # VeReMi 데이터: all/ 하위 모든 results 폴더에서 로그/GT 페어 탐색
     veremi_root = "VeReMi_Data/all"
@@ -226,22 +275,38 @@ if __name__ == "__main__":
     save_interval = 100
     save_path = "out/veremi_temp.csv"
     processed_count = 0
+
+      
+    
     # 임시 파일에서 데이터 로드 (중단된 경우 재시작)
     if os.path.exists(save_path):
         try:
+            print(f"Resuming VeReMi from temporary file: {save_path}")
             temp_df = pd.read_csv(save_path)
             veremi_dfs.append(temp_df)
-            processed_count = len(temp_df)
-            print(f"Resuming VeReMi from {len(temp_df)} previously processed records.")
+            # 이미 처리된 파일 목록을 만듭니다.
+            processed_logs = set(temp_df['_src'].unique())
+            print(f"Loaded {len(temp_df)} records. Found {len(processed_logs)} processed logs.")
         except Exception as e:
             print(f"Error loading temp file, starting fresh: {e}")
+            processed_logs = set()
+    else:
+        processed_logs = set()
 
     
     print(f"Loading all VeReMi logs and ground truths from {veremi_root}...")
 
     # iter_veremi_pairs 함수를 통해 모든 로그/GT 쌍을 자동으로 찾습니다.
     # 이미 처리된 파일은 건너뛰고 이어서 진행합니다.
+    new_files_processed = 0
     for log_path, gt_path in iter_veremi_pairs(veremi_root):
+        # --- 3. 최대 파일 개수 도달 시 루프 중단 (핵심 변경 사항) ---
+        if len(processed_logs) + processed_count >= max_veremi_files:
+            print(f"Reached the maximum file limit of {max_veremi_files}. Stopping.")
+            break
+
+        if log_path in processed_logs:
+            continue
         if log_path in [df['_src'].iloc[0] for df in veremi_dfs if '_src' in df.columns]:
             continue
 
@@ -271,6 +336,10 @@ if __name__ == "__main__":
     veremi_df = pd.concat(veremi_dfs, ignore_index=True) if veremi_dfs else pd.DataFrame()
     print(f"Total VeReMi records loaded: {len(veremi_df)}")
     
+    # --- 2. 동적 피처 추가 (모든 데이터를 불러온 후 최종적으로 실행) ---
+    print("Calculating dynamic features (acceleration, curvature) for the complete VeReMi dataset...")
+    veremi_df = preprocessor.add_dynamic_features(veremi_df)
+
     # 각각 CSV로 저장
     print("Saving VeReMi preprocessed data...")
     # v2aix_df.to_csv("out/v2aix_preprocessed.csv", index=False)

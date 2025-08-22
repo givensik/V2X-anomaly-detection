@@ -177,7 +177,8 @@ def run_training(
     feature_columns = [
         'pos_x', 'pos_y', 'pos_z',
         'spd_x', 'spd_y',
-        'heading', 'speed'
+        'heading', 'speed', 
+        'acceleration', 'curvature'
     ]
     print(f"Using {len(feature_columns)} selected features.")
 
