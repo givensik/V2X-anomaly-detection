@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from v2x_preprocessing import V2XDataPreprocessor
 
 # -------------------------------
-# Model (LSTM-AutoEncoder) - training과 동일한 구조
+# Model (LSTM-AutoEncoder) - training 스크립트와 동일한 구조
 # -------------------------------
 class LSTMAutoEncoder(nn.Module):
     def __init__(self, input_dim: int, sequence_length: int, hidden_dim: int = 128, n_layers: int = 2):
@@ -53,44 +53,51 @@ def run_testing(
 ):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
+    # 학습된 LSTM 모델의 메타 정보 로드
     with open(os.path.join(artifacts_dir, "training_meta_lstm.json"), "r") as f:
         meta = json.load(f)
     thr = float(meta["threshold"])
-    input_dim = int(meta["input_dim"])
+    input_dim = int(meta["input_dim"]) # 피처 개수
     seq_len = int(meta["sequence_length"])
 
+    # 사용할 피처 리스트 (training과 동일)
     feature_columns = [
         'pos_x', 'pos_y', 'pos_z', 'spd_x', 'spd_y', 'spd_z',
         'heading', 'speed', 'acceleration', 'curvature'
     ]
     
+    # 전처리된 CSV 파일 로드
     print("Loading preprocessed data from CSV...")
     v2aix_df = pd.read_csv(v2aix_csv_path)
     veremi_df = pd.read_csv(veremi_csv_path)
 
+    # 시퀀스 생성
     pre = V2XDataPreprocessor(feature_columns=feature_columns)
-
     print("Creating sequences...")
     X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=seq_len)
     X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=seq_len)
     X = np.concatenate([X_v2aix, X_veremi], axis=0)
     y = np.concatenate([y_v2aix, y_veremi], axis=0)
 
+    # 학습 때와 동일한 방식으로 테스트셋 분리
     _, X_temp, _, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)
     _, X_test, _, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp)
 
     test_loader = DataLoader(V2XDataset(X_test, y_test), batch_size=batch_size, shuffle=False)
 
+    # LSTM 모델 구조를 정의하고 학습된 가중치 로드
     model = LSTMAutoEncoder(input_dim=input_dim, sequence_length=seq_len)
     model.load_state_dict(torch.load(os.path.join(artifacts_dir, "model_lstm.pth"), map_location=device))
     model.to(device)
     model.eval()
 
+    # 예측 및 평가
     preds, labels, errors = [], [], []
     with torch.no_grad():
         for batch, batch_labels in test_loader:
             batch = batch.to(device)
             rec = model(batch)
+            # LSTM 모델의 재구성 오류 계산 (평탄화 X)
             err = torch.mean((batch - rec) ** 2, dim=[1, 2]).cpu().numpy()
             pred = (err > thr).astype(int)
             preds.extend(pred)
@@ -99,7 +106,7 @@ def run_testing(
 
     preds, labels, errors = np.array(preds), np.array(labels), np.array(errors)
     
-    print("\nANOMALY DETECTION RESULTS")
+    print("\nANOMALY DETECTION RESULTS (LSTM)")
     print("="*40)
     print(f"Accuracy: {(preds == labels).mean():.4f}")
     print(f"AUC-ROC (errors): {roc_auc_score(labels, errors):.4f}")
@@ -109,4 +116,5 @@ def run_testing(
     print(confusion_matrix(labels, preds))
 
 if __name__ == "__main__":
+    # argparse를 사용하거나 직접 경로를 지정할 수 있습니다.
     run_testing()
