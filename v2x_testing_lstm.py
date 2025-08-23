@@ -63,7 +63,8 @@ def run_testing(
     # 사용할 피처 리스트 (training과 동일)
     feature_columns = [
         'pos_x', 'pos_y', 'pos_z', 'spd_x', 'spd_y', 'spd_z',
-        'heading', 'speed', 'acceleration', 'curvature'
+        'heading', 'speed' 
+        # 'acceleration', 'curvature'
     ]
     
     # 전처리된 CSV 파일 로드
