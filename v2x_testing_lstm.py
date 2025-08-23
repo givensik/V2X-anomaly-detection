@@ -71,18 +71,29 @@ def run_testing(
     v2aix_df = pd.read_csv(v2aix_csv_path)
     veremi_df = pd.read_csv(veremi_csv_path)
 
-    # 시퀀스 생성
+    # 시퀀스 생성 (v2aix/veremi 합침)
+    # pre = V2XDataPreprocessor(feature_columns=feature_columns)
+    # print("Creating sequences...")
+    # X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=seq_len)
+    # X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=seq_len)
+    # X = np.concatenate([X_v2aix, X_veremi], axis=0)
+    # y = np.concatenate([y_v2aix, y_veremi], axis=0)
+
+    # # 학습 때와 동일한 방식으로 테스트셋 분리
+    # _, X_temp, _, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)
+    # _, X_test, _, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp)
+    # print(f"Testing on {len(X_test)} sequences.")
+
+    # veremi로만 테스트
     pre = V2XDataPreprocessor(feature_columns=feature_columns)
-    print("Creating sequences...")
-    X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=seq_len)
+    print("Creating sequences from VeReMi data...")
     X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=seq_len)
-    X = np.concatenate([X_v2aix, X_veremi], axis=0)
-    y = np.concatenate([y_v2aix, y_veremi], axis=0)
 
-    # 학습 때와 동일한 방식으로 테스트셋 분리
-    _, X_temp, _, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)
-    _, X_test, _, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp)
-
+    _, X_test, _, y_test = train_test_split(
+        X_veremi, y_veremi, test_size=0.5, random_state=random_state, stratify=y_veremi
+    )
+    
+    print(f"Testing on {len(X_test)} sequences.")
     test_loader = DataLoader(V2XDataset(X_test, y_test), batch_size=batch_size, shuffle=False)
 
     # LSTM 모델 구조를 정의하고 학습된 가중치 로드

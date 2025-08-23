@@ -145,7 +145,7 @@ def run_training(
     # X_train_n, y_train_n = X_train[normal_idx], y_train[normal_idx]
 
 
-    # V2AIX로 정상학습, VeReMi로 이상학습
+    # V2AIX로 정상학습, VeReMi로 검증/테스트
     # V2AIX로 정상학습
     X_train_n = X_v2aix
     y_train_n = y_v2aix
