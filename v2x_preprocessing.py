@@ -259,94 +259,51 @@ def iter_veremi_pairs(roots):
 
 
 if __name__ == "__main__":
+    # 1. 전처리기 및 파일 제한 설정
     preprocessor = V2XDataPreprocessor()
-    
-    # V2AIX 데이터
+    max_veremi_files = 300  # VeReMi 파일 처리 개수 제한
+
+    # --- 2. V2AIX와 VeReMi 데이터를 각각 로드 ---
     v2aix_path = "V2AIX_Data/json/Mobile/V2X-only"
     print(f"Loading V2AIX data from {v2aix_path}...")
     v2aix_df = preprocessor.load_v2aix_data(v2aix_path, max_files=1000000)
 
-    # VeReMi 데이터 
-    max_veremi_files = 100  # <--- 여기에서 처리할 파일 개수를 조절하세요!
-
-    # VeReMi 데이터: all/ 하위 모든 results 폴더에서 로그/GT 페어 탐색
     veremi_root = "VeReMi_Data/all"
     veremi_dfs = []
-    save_interval = 100
-    save_path = "out/veremi_temp.csv"
-    processed_count = 0
-
-      
+    print(f"\nLoading VeReMi logs (limit: {max_veremi_files} files)...")
     
-    # 임시 파일에서 데이터 로드 (중단된 경우 재시작)
-    if os.path.exists(save_path):
-        try:
-            print(f"Resuming VeReMi from temporary file: {save_path}")
-            temp_df = pd.read_csv(save_path)
-            veremi_dfs.append(temp_df)
-            # 이미 처리된 파일 목록을 만듭니다.
-            processed_logs = set(temp_df['_src'].unique())
-            print(f"Loaded {len(temp_df)} records. Found {len(processed_logs)} processed logs.")
-        except Exception as e:
-            print(f"Error loading temp file, starting fresh: {e}")
-            processed_logs = set()
-    else:
-        processed_logs = set()
-
-    
-    print(f"Loading all VeReMi logs and ground truths from {veremi_root}...")
-
-    # iter_veremi_pairs 함수를 통해 모든 로그/GT 쌍을 자동으로 찾습니다.
-    # 이미 처리된 파일은 건너뛰고 이어서 진행합니다.
-    new_files_processed = 0
-    for log_path, gt_path in iter_veremi_pairs(veremi_root):
-        # --- 3. 최대 파일 개수 도달 시 루프 중단 (핵심 변경 사항) ---
-        if len(processed_logs) + processed_count >= max_veremi_files:
-            print(f"Reached the maximum file limit of {max_veremi_files}. Stopping.")
+    all_pairs = list(iter_veremi_pairs(veremi_root))
+    for i, (log_path, gt_path) in enumerate(all_pairs):
+        if i >= max_veremi_files:
             break
-
-        if log_path in processed_logs:
-            continue
-        if log_path in [df['_src'].iloc[0] for df in veremi_dfs if '_src' in df.columns]:
-            continue
-
-        print(f"Processing VeReMi log: {log_path}")
+        print(f"Processing file {i+1}/{max_veremi_files}: {log_path}")
         df = preprocessor.load_veremi_data(log_path, gt_path)
-        
         if not df.empty:
-            df['_src'] = log_path
             veremi_dfs.append(df)
-            processed_count += 1
-            
-            # 일정 간격마다 중간 저장
-            if processed_count % save_interval == 0:
-                current_df = pd.concat(veremi_dfs, ignore_index=True)
-                current_df.to_csv(save_path, index=False)
-                print(f"[{processed_count} pairs] Intermediate save to {save_path}")
-
-
-    # # VeReMi 데이터셋의 로그와 Ground Truth 파일을 페어로 로드
-    # for log_path, gt_path in iter_veremi_pairs(veremi_root):
-    #     print(f"Loading VeReMi log: {log_path}")
-    #     df = preprocessor.load_veremi_data(log_path, gt_path)
-
-    #     if not df.empty:
-    #         veremi_dfs.append(df)
 
     veremi_df = pd.concat(veremi_dfs, ignore_index=True) if veremi_dfs else pd.DataFrame()
-    print(f"Total VeReMi records loaded: {len(veremi_df)}")
-    
-    # --- 2. 동적 피처 추가 (모든 데이터를 불러온 후 최종적으로 실행) ---
-    print("Calculating dynamic features (acceleration, curvature) for the complete VeReMi dataset...")
-    veremi_df = preprocessor.add_dynamic_features(veremi_df)
 
-    # 각각 CSV로 저장
-    print("Saving VeReMi preprocessed data...")
-    # v2aix_df.to_csv("out/v2aix_preprocessed.csv", index=False)
-    veremi_df.to_csv("out/veremi_preprocessed.csv", index=False)
+    # --- 3. 두 데이터프레임을 하나로 합치기 ---
+    print("\nCombining V2AIX and VeReMi datasets...")
+    combined_df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
+    print(f"Total records combined: {len(combined_df)}")
+
+    # --- 4. 합쳐진 전체 데이터에 대해 동적 피처 추가 ---
+    print("Adding dynamic features to the combined dataset...")
+    combined_df = preprocessor.add_dynamic_features(combined_df)
     
-    # (아래는 참고용: 전체 합쳐서 전처리/시퀀스 생성)
-    # combined_df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
-    # processed_df = preprocessor.preprocess_features(combined_df)
-    # sequences, labels = preprocessor.create_sequences(processed_df)
-    # print(f"Sequences shape: {sequences.shape}, Labels shape: {labels.shape}")
+    # --- 5. 합쳐진 전체 데이터에 대해 최종 전처리 (스케일링) ---
+    print("Preprocessing (scaling) the combined dataset...")
+    processed_df = preprocessor.preprocess_features(combined_df)
+
+    # --- 6. 최종 전처리된 데이터를 다시 분리하여 저장 ---
+    print("Splitting and saving the final preprocessed data...")
+    final_v2aix_df = processed_df[processed_df['dataset'] == 'v2aix']
+    final_veremi_df = processed_df[processed_df['dataset'] == 'veremi']
+
+    final_v2aix_df.to_csv("out/v2aix_preprocessed.csv", index=False)
+    final_veremi_df.to_csv("out/veremi_preprocessed.csv", index=False)
+
+    print("\nPreprocessing finished successfully.")
+    print(f"V2AIX data saved: {len(final_v2aix_df)} rows")
+    print(f"VeReMi data saved: {len(final_veremi_df)} rows")
