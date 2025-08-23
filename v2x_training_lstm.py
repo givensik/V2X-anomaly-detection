@@ -127,25 +127,43 @@ def run_training(
 
     pre = V2XDataPreprocessor(feature_columns=feature_columns)
     
+    # 시퀀스 생성
     print("Creating sequences...")
     X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=sequence_length)
     X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=sequence_length)
-    X = np.concatenate([X_v2aix, X_veremi], axis=0)
-    y = np.concatenate([y_v2aix, y_veremi], axis=0)
-    
-    print(f"Combined sequences: {X.shape}, Labels: {y.shape}")
 
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp)
+    # # 시퀀스 결합
+    # X = np.concatenate([X_v2aix, X_veremi], axis=0)
+    # y = np.concatenate([y_v2aix, y_veremi], axis=0)
+    # print(f"Combined sequences: {X.shape}, Labels: {y.shape}")
 
-    normal_idx = np.where(y_train == 0)[0]
-    X_train_n, y_train_n = X_train[normal_idx], y_train[normal_idx]
+    # # 데이터 분할(v2aix/veremi 섞음)
+    # X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)
+    # X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp)
+    # # 이건 뭐냐 그 normal만 뽑는거
+    # normal_idx = np.where(y_train == 0)[0]
+    # X_train_n, y_train_n = X_train[normal_idx], y_train[normal_idx]
+
+
+    # V2AIX로 정상학습, VeReMi로 이상학습
+    # V2AIX로 정상학습
+    X_train_n = X_v2aix
+    y_train_n = y_v2aix
+    print(f"Train on PURE normal sequences (V2AIX only): {len(X_train_n)}")
+
+    # VeReMi로 검증/테스트셋 분리
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_veremi, y_veremi, test_size=0.5, random_state=random_state, stratify=y_veremi
+    )
+    print(f"Validation sequences (from VeReMi): {X_val.shape}")
+    print(f"Test sequences (from VeReMi): {X_test.shape}")
     
+
     train_loader = DataLoader(V2XDataset(X_train_n, y_train_n), batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(V2XDataset(X_val, y_val), batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(V2XDataset(X_test, y_test), batch_size=batch_size, shuffle=False)
 
-    num_features = X.shape[2]
+    num_features = X_v2aix.shape[2]
     model = LSTMAutoEncoder(input_dim=num_features, sequence_length=sequence_length)
     
     print("Training LSTM-AutoEncoder...")

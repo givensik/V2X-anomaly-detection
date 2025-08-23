@@ -116,5 +116,4 @@ def run_testing(
     print(confusion_matrix(labels, preds))
 
 if __name__ == "__main__":
-    # argparse를 사용하거나 직접 경로를 지정할 수 있습니다.
     run_testing()
