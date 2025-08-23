@@ -187,26 +187,22 @@ def run_training(
     # CSV 데이터 불러오기 columns
     cols_to_load = feature_columns + ['station_id', 'timestamp', 'is_attacker', 'attacker_type', 'dataset']
 
-    # V2AIX 데이터셋 시퀀스 생성 및 라벨링(Version 2)
-    print("Loading V2AIX (from CSV) ...")
-    # v2aix_df = pd.read_csv(v2aix_csv_path)
-    v2aix_df = pd.read_csv(v2aix_csv_path, usecols=lambda c: c in cols_to_load)
-    v2aix_df = pre.preprocess_features(v2aix_df)
-    X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=sequence_length)
-    print(f"V2AIX Sequences: {X_v2aix.shape}, Labels: {y_v2aix.shape}")
+    # 2. 전처리된 CSV 파일을 그대로 불러옵니다.
+    print("Loading preprocessed data from CSV...")
+    v2aix_df = pd.read_csv(v2aix_csv_path)
+    veremi_df = pd.read_csv(veremi_csv_path)
 
-    # VeReMi 데이터셋 불러오기
-    # VeReMi는 전체 데이터를 사용하므로, 공격 데이터도 포함됨
-    # VeReMi 데이터셋 시퀀스 생성 및 라벨링
-    print("Loading VeReMi (from CSV) ...")
-    # veremi_df = pd.read_csv(veremi_csv_path)
-    veremi_df = pd.read_csv(veremi_csv_path, usecols=lambda c: c in cols_to_load)
-    veremi_df = pre.preprocess_features(veremi_df)
-    X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=sequence_length)
-    print(f"VeReMi Sequences: {X_veremi.shape}, Labels: {y_veremi.shape}")
-
-
+    # 3. preprocessor는 시퀀스 생성을 위해서만 사용합니다.
+    #    (scaler는 이미 v2x_preprocessing.py에서 사용되었으므로 여기서는 불필요)
+    pre = V2XDataPreprocessor(feature_columns=feature_columns)
     
+
+    print("Creating sequences...")
+    X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=sequence_length)
+    X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=sequence_length)
+
+    X = np.concatenate([X_v2aix, X_veremi], axis=0)
+    y = np.concatenate([y_v2aix, y_veremi], axis=0)
     # Preprocess features
     
     # 이때는 두 데이터셋을 합치고 전처리
@@ -238,9 +234,6 @@ def run_training(
     # X = np.concatenate([X_v2aix[y_v2aix == 0], X_veremi[y_veremi == 0]], axis=0)
     # y = np.concatenate([y_v2aix[y_v2aix == 0], y_veremi[y_veremi == 0]], axis=0)
     # print(f"Combined normal sequences: {X.shape}")
-
-    X = np.concatenate([X_v2aix, X_veremi], axis=0)
-    y = np.concatenate([y_v2aix, y_veremi], axis=0)
 
     print(f"Combined sequences: {X.shape}, Labels: {y.shape}")
     print(f"Attacker sequences: {(y==1).sum()}, Normal sequences: {(y==0).sum()}")

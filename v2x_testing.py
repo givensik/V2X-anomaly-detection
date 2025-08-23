@@ -67,14 +67,19 @@ def run_testing(
     print("Loading VeReMi (from CSV) with selected columns...")
     veremi_df = pd.read_csv(veremi_csv_path, usecols=lambda c: c in cols_to_load)
     
+    pre = V2XDataPreprocessor(feature_columns=feature_columns)
+    print("Creating sequences...")
+    X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=seq_len)
+    X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=seq_len)
 
-    # Preprocess and create sequences
-    print("Preprocessing and creating sequences for each dataset...")
-    v2aix_df_processed = pre.preprocess_features(v2aix_df)
-    X_v2aix, y_v2aix = pre.create_sequences(v2aix_df_processed, sequence_length=seq_len)
 
-    veremi_df_processed = pre.preprocess_features(veremi_df)
-    X_veremi, y_veremi = pre.create_sequences(veremi_df_processed, sequence_length=seq_len)
+    # # Preprocess and create sequences
+    # print("Preprocessing and creating sequences for each dataset...")
+    # v2aix_df_processed = pre.preprocess_features(v2aix_df)
+    # X_v2aix, y_v2aix = pre.create_sequences(v2aix_df_processed, sequence_length=seq_len)
+
+    # veremi_df_processed = pre.preprocess_features(veremi_df)
+    # X_veremi, y_veremi = pre.create_sequences(veremi_df_processed, sequence_length=seq_len)
 
     print("Combining the generated sequences...")
     X = np.concatenate([X_v2aix, X_veremi], axis=0)
