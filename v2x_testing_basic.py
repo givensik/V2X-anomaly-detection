@@ -48,26 +48,22 @@ def run_testing(
     seq_len = int(sequence_length or meta["sequence_length"])
     
     feature_columns = [
-        'pos_x', 'pos_y', 'pos_z',
-        'spd_x', 'spd_y',
-        'heading', 'speed',
-        'acceleration', 'curvature'
+        'pos_x', 'pos_y', 'pos_z', 'spd_x', 'spd_y', 'spd_z',
+        'heading', 'speed', 'acceleration', 'curvature'
     ]
     print(f"Using {len(feature_columns)} selected features for testing.")
 
-    pre = load_preprocessor(os.path.join(artifacts_dir, "preprocessor.pkl"))
-    pre.feature_columns = feature_columns
     # CSV 데이터 불러오기
     # 3. CSV 파일을 읽을 때 필요한 컬럼만 선택하여 로드합니다.
-    cols_to_load = feature_columns + ['station_id', 'timestamp', 'is_attacker', 'attacker_type', 'dataset']
     
     print("Loading V2AIX (from CSV) with selected columns...")
-    v2aix_df = pd.read_csv(v2aix_csv_path, usecols=lambda c: c in cols_to_load)
+    v2aix_df = pd.read_csv(v2aix_csv_path)
 
     print("Loading VeReMi (from CSV) with selected columns...")
-    veremi_df = pd.read_csv(veremi_csv_path, usecols=lambda c: c in cols_to_load)
+    veremi_df = pd.read_csv(veremi_csv_path)
     
     pre = V2XDataPreprocessor(feature_columns=feature_columns)
+
     print("Creating sequences...")
     X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=seq_len)
     X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=seq_len)
@@ -91,9 +87,12 @@ def run_testing(
     # X, y = pre.create_sequences(df, sequence_length=seq_len)
 
     # Same split strategy
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.4, random_state=random_state, stratify=y)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp)
-
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        X, y, test_size=0.4, random_state=random_state, stratify=y
+    )
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp
+    )
     test_loader = DataLoader(V2XDataset(X_test, y_test), batch_size=batch_size, shuffle=False)
 
     # Load model
@@ -151,7 +150,7 @@ if __name__ == "__main__":
     ap.add_argument("--artifacts_dir", type=str, required=True)
     ap.add_argument("--v2aix_csv_path", type=str, required=True)
     ap.add_argument("--veremi_csv_path", type=str, required=True)
-    ap.add_argument("--sequence_length", type=int, default=None)
+    ap.add_argument("--sequence_length", type=int, default=10)
     ap.add_argument("--random_state", type=int, default=42)
     ap.add_argument("--batch_size", type=int, default=32)
     args = ap.parse_args()

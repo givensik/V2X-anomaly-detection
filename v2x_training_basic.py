@@ -173,67 +173,27 @@ def run_training(
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-    # 'spd_z', 'acceleration', 'curvature'를 제외한 7개 피처
+   # 1. 사용할 피처 리스트를 정의합니다. (training 스크립트와 동일하게)
     feature_columns = [
-        'pos_x', 'pos_y', 'pos_z',
-        'spd_x', 'spd_y',
-        'heading', 'speed', 
-        'acceleration', 'curvature'
+        'pos_x', 'pos_y', 'pos_z', 'spd_x', 'spd_y', 'spd_z',
+        'heading', 'speed', 'acceleration', 'curvature'
     ]
-    print(f"Using {len(feature_columns)} selected features.")
-
-    pre = V2XDataPreprocessor(feature_columns=feature_columns)
-
-    # CSV 데이터 불러오기 columns
-    cols_to_load = feature_columns + ['station_id', 'timestamp', 'is_attacker', 'attacker_type', 'dataset']
+    print(f"Using {len(feature_columns)} features for testing.")
 
     # 2. 전처리된 CSV 파일을 그대로 불러옵니다.
     print("Loading preprocessed data from CSV...")
     v2aix_df = pd.read_csv(v2aix_csv_path)
     veremi_df = pd.read_csv(veremi_csv_path)
 
-    # 3. preprocessor는 시퀀스 생성을 위해서만 사용합니다.
-    #    (scaler는 이미 v2x_preprocessing.py에서 사용되었으므로 여기서는 불필요)
+    # 3. preprocessor 객체는 오직 시퀀스 생성을 위해서만 사용합니다.
     pre = V2XDataPreprocessor(feature_columns=feature_columns)
-    
 
-    print("Creating sequences...")
+    print("Creating sequences from the loaded data...")
     X_v2aix, y_v2aix = pre.create_sequences(v2aix_df, sequence_length=sequence_length)
     X_veremi, y_veremi = pre.create_sequences(veremi_df, sequence_length=sequence_length)
-
+    
     X = np.concatenate([X_v2aix, X_veremi], axis=0)
     y = np.concatenate([y_v2aix, y_veremi], axis=0)
-    # Preprocess features
-    
-    # 이때는 두 데이터셋을 합치고 전처리
-    # print("Preprocessing features ...")
-    # df = pd.concat([v2aix_df, veremi_df], ignore_index=True)
-    # df = pre.preprocess_features(df)
-
-
-    # 시퀀스화, 
-    # X, y = pre.create_sequences(df, sequence_length=sequence_length)
-    # 각 station_id별 시간순으로 슬라이딩 윈도우(길이 S) → (N, S, F) 생성
-    # 시퀀스 라벨 y는 윈도우 내에 1(공격)이 한 번이라도 있으면 1
-
-    # print(f"Sequences: {X.shape}, Labels: {y.shape}")
-    # y.sum()          # 공격 시퀀스 개수
-    # (y==0).sum()     # 정상 시퀀스 개수
-    # y.mean()         # 공격 시퀀스 비율
-    # print(y.sum(), "attacker sequences", (y==0).sum(), "normal sequences", f"{y.mean()*100:.2f}% attacker sequences")
-    
-    # 데이터 분할 -> 이 전꺼
-    # X_train, X_temp, y_train, y_temp = train_test_split(
-    #     X, y, test_size=0.4, random_state=random_state, stratify=y
-    # )
-    # X_val, X_test, y_val, y_test = train_test_split(
-    #     X_temp, y_temp, test_size=0.5, random_state=random_state, stratify=y_temp
-    # )
-
-    # 두 데이터셋에서 정상 시퀀스만 추출해서 학습 데이터로 사용
-    # X = np.concatenate([X_v2aix[y_v2aix == 0], X_veremi[y_veremi == 0]], axis=0)
-    # y = np.concatenate([y_v2aix[y_v2aix == 0], y_veremi[y_veremi == 0]], axis=0)
-    # print(f"Combined normal sequences: {X.shape}")
 
     print(f"Combined sequences: {X.shape}, Labels: {y.shape}")
     print(f"Attacker sequences: {(y==1).sum()}, Normal sequences: {(y==0).sum()}")
@@ -249,15 +209,16 @@ def run_training(
 
     # 훈련 데이터는 정상 데이터만 사용 (AutoEncoder 학습)
     normal_idx = np.where(y_train == 0)[0]
-    X_train_n = X_train[normal_idx]; y_train_n = y_train[normal_idx]
+    X_train_n = X_train[normal_idx]
+    y_train_n = y_train[normal_idx]
     print(f"Train on normal sequences: {len(X_train_n)}")
     print(f"Validation sequences: {X_val.shape}, Test sequences: {X_test.shape}")
     
 
-    # VeReMi 전체를 테스트 데이터로 사용
-    X_test = X_veremi
-    y_test = y_veremi
-    print(f"Test sequences (VeReMi): {X_test.shape}")
+    # # VeReMi 전체를 테스트 데이터로 사용
+    # X_test = X_veremi
+    # y_test = y_veremi
+    # print(f"Test sequences (VeReMi): {X_test.shape}")
 
     # # 정상 데이터만 학습
     # normal_idx = np.where(y_train == 0)[0]
@@ -269,10 +230,11 @@ def run_training(
     # test_loader  = DataLoader(V2XDataset(X_test, y_test), batch_size=batch_size, shuffle=False)
 
     # DataLoader 준비
-    train_loader = DataLoader(V2XDataset(X_train, y_train), batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(V2XDataset(X_train_n, y_train_n), batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(V2XDataset(X_val, y_val), batch_size=batch_size, shuffle=False)
     test_loader  = DataLoader(V2XDataset(X_test, y_test), batch_size=batch_size, shuffle=False)
 
+    # 모델 학습
     input_dim = X.shape[1] * X.shape[2]
     model, losses = train_autoencoder(train_loader, input_dim, epochs=epochs, lr=lr, device=device)
     
@@ -292,7 +254,7 @@ def run_training(
     # F-beta score 기반 임계값 탐색
     val_y_tensor = torch.FloatTensor(y_val)
     val_loader_f1 = DataLoader(V2XDataset(X_val, val_y_tensor), batch_size=batch_size, shuffle=False)
-    thr, val_errs = find_optimal_threshold_fbeta(model, val_loader_f1, val_y_tensor, beta=1.5, device=device)
+    thr, val_errs = find_optimal_threshold_fbeta(model, val_loader_f1, val_y_tensor, beta=1.0, device=device)
 
     print(f"Optimal Threshold (F1-score): {thr:.6f}") # 출력 메시지는 F-beta로 수정하는 것이 좋습니다.
 
@@ -311,13 +273,13 @@ def run_training(
 
     # Save artifacts
     torch.save(model.state_dict(), os.path.join(out_dir, "model.pth"))
-    save_preprocessor(pre, os.path.join(out_dir, "preprocessor.pkl"))
+    # save_preprocessor(pre, os.path.join(out_dir, "preprocessor.pkl"))
     with open(os.path.join(out_dir, "training_meta.json"), "w") as f:
         json.dump({
             "sequence_length": sequence_length,
             "input_dim": input_dim,
             "threshold": float(thr),
-            "percentile": percentile,
+            # "percentile": percentile,
             "auc_on_test_errors": auc
         }, f, indent=2)
 
