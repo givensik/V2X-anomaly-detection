@@ -10,3 +10,6 @@
 *.json
 *.pth
 /artifacts
+*.pkl
+*.npy
+*.pt
