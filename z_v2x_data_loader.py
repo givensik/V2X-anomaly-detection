@@ -425,7 +425,7 @@ class V2XDataLoader:
         
         return quality_report
 
-    def get_unit_info(self) -> dict:
+    def get_unit_info(self) -> dict:  
         """현재 설정된 단위 정보 반환"""
         return {
             'standardize_units': self.standardize_units,
@@ -547,10 +547,10 @@ def main():
     # data_filter_types: 실제 데이터에서 정상(0), 공격 타입 1, 2만 포함
     veremi_df_filtered = loader.load_veremi_dataset(
         veremi_root=veremi_root,
-        max_files=1500,
-        directory_filter_types=[0, 16],   # 시나리오 디렉토리에서 공격 타입 1, 2만
-        data_filter_types=[0, 16],     # 데이터에서 정상(0), 공격 1, 2만
-        max_scenarios=10               # 시나리오 개수 제한 없음 (필요시 정수로 제한)
+        max_files=10000,
+        directory_filter_types=[0, 8],   # 시나리오 디렉토리에서 공격 타입 1, 2만
+        data_filter_types=[0, 8],     # 데이터에서 정상(0), 공격 1, 2만
+        max_scenarios=45               # 시나리오 개수 제한 없음 (필요시 정수로 제한)
     )
     
     if not veremi_df_filtered.empty:
